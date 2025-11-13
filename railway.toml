@@ -1,5 +1,6 @@
 [build]
 nixpacksVersion = "0.1"
+providers = ["php"]
 
 [phases.setup]
 nixPkgs = [
