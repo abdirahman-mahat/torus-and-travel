@@ -197,6 +197,24 @@ if (!function_exists('basicControl')) {
 
             return $configure;
         } catch (\Exception $e) {
+            // If DB is not available (during migrations, setup, or maintenance),
+            // return a minimal object so views that access basicControl() do not
+            // throw "Attempt to read property on null" errors.
+            return (object)[
+                'site_title' => config('app.name', 'Site'),
+                'theme' => 'adventra',
+                'primary_color' => '#0d6efd',
+                'secondary_color' => '#6c757d',
+                'favicon' => null,
+                'favicon_driver' => config('filesystems.default'),
+                'logo' => null,
+                'logo_driver' => config('filesystems.default'),
+                'base_currency' => 'USD',
+                'currency_symbol' => '$',
+                'user_paginate' => 10,
+                'home_style' => 'home-101',
+                'package_list_style' => 'list',
+            ];
         }
     }
 }

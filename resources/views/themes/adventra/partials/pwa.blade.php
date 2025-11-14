@@ -340,45 +340,59 @@
 
 
 
-    window.addEventListener('load', () => {
-        const isFirefox = navigator.userAgent.includes('Firefox');
-        let deferredPrompt = null;
+    // Register beforeinstallprompt as early as possible and only call preventDefault()
+    // when we intend to show our custom install modal. Store the event on window so
+    // it can be used later when the user clicks the install button.
+    const isFirefox = navigator.userAgent.includes('Firefox');
+    window.deferredPwaPrompt = null;
 
-        if (!isFirefox && 'BeforeInstallPromptEvent' in window) {
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-
-                const installButton = document.getElementById('installButton');
-                let pwaStatus = localStorage.getItem('pwa_install');
-                if (pwaStatus !== 'not_install' && pwaStatus !== 'install') {
-                    $("#pwaInstallPopup").show(); // Show your modal
-                }
-
-                installButton.addEventListener('click', async () => {
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
-                    deferredPrompt = null;
-                    if (outcome === 'accepted') {
-                        localStorage.setItem('pwa_install', 'install');
-                    } else {
-                        localStorage.setItem('pwa_install', 'not_install');
-                    }
-                });
-            });
-        } else if (isFirefox) {
-            const installButton = document.getElementById('installButton');
+    if (!isFirefox) {
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Only prevent the default prompt if we plan to present our custom UI
             let pwaStatus = localStorage.getItem('pwa_install');
             if (pwaStatus !== 'not_install' && pwaStatus !== 'install') {
-                $("#pwaInstallPopup").show(); // Show your modal with Firefox-specific instructions
+                e.preventDefault();
+                window.deferredPwaPrompt = e;
+                $("#pwaInstallPopup").show(); // Show the modal
             }
+        });
+    }
 
-            installButton.addEventListener('click', () => {
-                // Show custom instructions for Firefox
-                alert("To install the app on Firefox, use a mobile device. Open the browser menu (three dots in the top-right corner) and select 'Add to Home Screen'.");
-                localStorage.setItem('pwa_install', 'install');
+    window.addEventListener('load', () => {
+        const installButton = document.getElementById('installButton');
+
+        // Click handler for install button (works for Chromium-based browsers)
+        if (installButton) {
+            installButton.addEventListener('click', async () => {
+                if (window.deferredPwaPrompt) {
+                    try {
+                        window.deferredPwaPrompt.prompt();
+                        const { outcome } = await window.deferredPwaPrompt.userChoice;
+                        window.deferredPwaPrompt = null;
+                        if (outcome === 'accepted') {
+                            localStorage.setItem('pwa_install', 'install');
+                        } else {
+                            localStorage.setItem('pwa_install', 'not_install');
+                        }
+                    } catch (err) {
+                        // If prompt() fails, clear saved event and mark as not installed
+                        window.deferredPwaPrompt = null;
+                        localStorage.setItem('pwa_install', 'not_install');
+                        console.warn('PWA prompt failed', err);
+                    }
+                } else if (isFirefox) {
+                    // Firefox fallback: show custom instructions
+                    alert("To install the app on Firefox, use a mobile device. Open the browser menu (three dots in the top-right corner) and select 'Add to Home Screen'.");
+                    localStorage.setItem('pwa_install', 'install');
+                }
             });
         }
+
+        // If user closes the modal manually, ensure we clear the saved event to avoid
+        // a preventDefault without a later prompt (which triggers the browser console warning).
+        document.querySelector('.carousel_close_btn').addEventListener('click', ()=>{
+            window.deferredPwaPrompt = null;
+        });
     });
 
 
